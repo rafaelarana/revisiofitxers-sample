@@ -1,0 +1,59 @@
+bundle:
+  name: revisiofitxers-sample
+
+include:
+  - resources/*.yml
+
+# The AppKit app under src/app carries a large node_modules + local build/test dirs and
+# its own scaffold databricks.yml — none of which the parent bundle should sync. The app's
+# source is deployed to the app compute (which runs npm install/build there), so excluding
+# these keeps `bundle deploy` fast and avoids a nested-bundle clash.
+sync:
+  exclude:
+    - "src/app/node_modules"
+    - "src/app/client/dist"
+    - "src/app/dist"
+    - "src/app/.smoke-test"
+    - "src/app/test-results"
+    - "src/app/databricks.yml"
+    - ".venv"
+
+variables:
+  catalog:
+    description: "Unity Catalog catalog to hold the app's schema/volume/tables. Created automatically by setup.sh if missing, or pass an existing one with CATALOG=..."
+    default: revisiofitxers_sample
+  schema:
+    description: "Schema (managed by this bundle) for the staging/result tables."
+    default: mvp
+  volume:
+    description: "UC Volume (managed by this bundle) used for landing/staging/output files."
+    default: raw_docs
+  sample_data_dir:
+    description: "Name of the folder (synced from the bundle root) containing anonymized sample files to classify on first run."
+    default: sample_docs
+  warehouse_id:
+    description: "Optional SQL warehouse id, if you extend the app with warehouse-backed reads. Not required for the default Lakebase flow."
+    default: ""
+  lakebase_endpoint:
+    description: "Lakebase endpoint resource path (projects/<p>/branches/<b>/endpoints/<e>). Set by ensure_lakebase.py output; overridable per deploy."
+    default: projects/revisiofitxers/branches/production/endpoints/primary
+  lakebase_host:
+    description: "Lakebase Postgres host. Discovered by ensure_lakebase.py; override per workspace."
+    default: ""
+  lakebase_pg_database:
+    description: "Lakebase Postgres database name."
+    default: databricks_postgres
+  lakebase_branch:
+    description: "Lakebase branch resource path for the app's postgres binding."
+    default: projects/revisiofitxers/branches/production
+  lakebase_database:
+    description: "Lakebase database resource path for the app's postgres binding."
+    default: projects/revisiofitxers/branches/production/databases/databricks-postgres
+
+targets:
+  dev:
+    default: true
+    mode: development
+    # No workspace.host/profile pinned on purpose: `databricks bundle deploy --profile <name>`
+    # (or the CLI's default profile) decides which workspace this lands in — that's what
+    # makes this deployable "from scratch" into any fresh workspace.

@@ -1,0 +1,65 @@
+resources:
+  jobs:
+    revisiofitxers_pipeline:
+      name: "[${bundle.target}] RevisioFitxers MVP — clasificación de documentos"
+      description: >
+        End-to-end MVP: unzip/parse .eml/extract .xlsx text -> ai_parse_document (PDF/DOCX)
+        -> ai_classify + ai_extract + ai_gen -> Excel export. All tasks run on serverless
+        compute; no SQL warehouse or cluster to provision.
+
+      # NOTE: schema/volume reference the *deployed resource's* .name, not the raw ${var.*}
+      # values — `mode: development` (see databricks.yml) auto-prefixes UC schema names with
+      # "dev_<user>_" for isolation, so the literal variable value would point at a schema
+      # that doesn't actually exist. Always resolve through resources.*.name, never the bare var.
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${resources.schemas.mvp_schema.name}
+        - name: volume
+          default: ${resources.volumes.raw_docs.name}
+        - name: sample_data_path
+          default: "${workspace.file_path}/${var.sample_data_dir}"
+
+      environments:
+        - environment_key: mvp_env
+          spec:
+            client: "1"
+            dependencies:
+              - openpyxl
+
+      tasks:
+        - task_key: stage_and_load
+          environment_key: mvp_env
+          notebook_task:
+            notebook_path: ../src/notebooks/01_stage_and_load.py
+            base_parameters:
+              catalog: "{{job.parameters.catalog}}"
+              schema: "{{job.parameters.schema}}"
+              volume: "{{job.parameters.volume}}"
+              sample_data_path: "{{job.parameters.sample_data_path}}"
+
+        - task_key: run_pipeline
+          depends_on:
+            - task_key: stage_and_load
+          environment_key: mvp_env
+          notebook_task:
+            notebook_path: ../src/notebooks/02_pipeline.py
+            base_parameters:
+              catalog: "{{job.parameters.catalog}}"
+              schema: "{{job.parameters.schema}}"
+
+        - task_key: export_excel
+          depends_on:
+            - task_key: run_pipeline
+          environment_key: mvp_env
+          notebook_task:
+            notebook_path: ../src/notebooks/03_export_excel.py
+            base_parameters:
+              catalog: "{{job.parameters.catalog}}"
+              schema: "{{job.parameters.schema}}"
+              volume: "{{job.parameters.volume}}"
+
+      permissions:
+        - level: CAN_VIEW
+          group_name: "users"

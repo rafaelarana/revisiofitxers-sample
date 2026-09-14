@@ -1,0 +1,77 @@
+resources:
+  jobs:
+    revisiofitxers_ingest:
+      name: "[${bundle.target}] RevisioFitxers — Auto Loader ingest"
+      description: >
+        Event-driven ingest: Auto Loader (cloudFiles/binaryFile) over the Volume landing/ area
+        normalizes newly-landed files (unzip incl. nested, detach .eml, xlsx→text, dedup) into
+        staging/<expedient_id>/ + manifest, then moves raw→archive. Reuses src/shared/normalize.py.
+        A file_arrival trigger re-runs this whenever new files land under the landing/ path
+        (spec §4/§5.2, build-plan Phase 1). Serverless — no cluster to provision.
+
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${resources.schemas.mvp_schema.name}
+        - name: volume
+          default: ${resources.volumes.raw_docs.name}
+        - name: lakebase_endpoint
+          default: ${var.lakebase_endpoint}
+        - name: lakebase_host
+          default: ${var.lakebase_host}
+        - name: lakebase_pg_database
+          default: ${var.lakebase_pg_database}
+
+      environments:
+        - environment_key: ingest_env
+          spec:
+            client: "1"
+            dependencies:
+              - openpyxl
+        - environment_key: classify_env
+          spec:
+            client: "1"
+            dependencies:
+              - "psycopg[binary]"
+              - "databricks-sdk>=0.81"
+
+      tasks:
+        - task_key: autoloader_ingest
+          environment_key: ingest_env
+          notebook_task:
+            notebook_path: ../src/pipeline/01_autoloader_ingest.py
+            base_parameters:
+              catalog: "{{job.parameters.catalog}}"
+              schema: "{{job.parameters.schema}}"
+              volume: "{{job.parameters.volume}}"
+
+        - task_key: classify_merge
+          depends_on:
+            - task_key: autoloader_ingest
+          environment_key: classify_env
+          notebook_task:
+            notebook_path: ../src/pipeline/02_classify_merge.py
+            base_parameters:
+              catalog: "{{job.parameters.catalog}}"
+              schema: "{{job.parameters.schema}}"
+              volume: "{{job.parameters.volume}}"
+              lakebase_endpoint: "{{job.parameters.lakebase_endpoint}}"
+              lakebase_host: "{{job.parameters.lakebase_host}}"
+              lakebase_pg_database: "{{job.parameters.lakebase_pg_database}}"
+
+      # file_arrival trigger kept as a backstop but PAUSED: the app now triggers this job
+      # deterministically via the jobs() plugin after each upload batch (predictable demo
+      # latency). Its detection latency proved unreliable (build-plan Phase 4 carry-over).
+      # The job is idempotent (Auto Loader checkpoint + MERGE), so re-enabling it is safe.
+      trigger:
+        file_arrival:
+          url: /Volumes/${var.catalog}/${resources.schemas.mvp_schema.name}/${resources.volumes.raw_docs.name}/landing/
+        pause_status: PAUSED
+
+      permissions:
+        - level: CAN_VIEW
+          group_name: "users"
+        # The app SP triggers this job (jobs() plugin / app resource binding).
+        - level: CAN_MANAGE_RUN
+          service_principal_name: ${resources.apps.revisiofitxers_app.service_principal_client_id}

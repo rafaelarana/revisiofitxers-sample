@@ -1,0 +1,31 @@
+resources:
+  apps:
+    revisiofitxers_app:
+      name: revisiofitxers-${bundle.target}
+      description: "RevisioFitxers — multi-user expedient lifecycle app (AppKit): create expedients, upload docs (zip/files) to a UC Volume that auto-triggers the classify pipeline, search/review by expedient."
+      source_code_path: ../src/app
+      # The app reads/writes the Lakebase state store as its Service Principal.
+      # CAN_CONNECT_AND_CREATE lets the SP own any schema it creates; it reads/writes the
+      # pipeline's `revisiofitxers` schema via a post-deploy GRANT (scripts/grant_app_access.py).
+      resources:
+        - name: postgres
+          postgres:
+            branch: ${var.lakebase_branch}
+            database: ${var.lakebase_database}
+            permission: CAN_CONNECT_AND_CREATE
+        # Volume the files() plugin writes uploads into (landing/<expedient_id>/raw/).
+        # app.yaml wires DATABRICKS_VOLUME_LANDING to this resource via valueFrom.
+        - name: landing-volume
+          uc_securable:
+            securable_type: VOLUME
+            securable_full_name: ${var.catalog}.${resources.schemas.mvp_schema.name}.${resources.volumes.raw_docs.name}
+            permission: WRITE_VOLUME
+        # The ingest+classify job the app triggers after an upload (jobs() plugin →
+        # DATABRICKS_JOB_INGEST). CAN_MANAGE_RUN lets the app SP start runs on the user's behalf.
+        - name: ingest-job
+          job:
+            id: ${resources.jobs.revisiofitxers_ingest.id}
+            permission: CAN_MANAGE_RUN
+      permissions:
+        - level: CAN_USE
+          group_name: "users"

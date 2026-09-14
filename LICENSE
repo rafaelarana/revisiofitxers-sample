@@ -1,0 +1,30 @@
+Databricks Sample Code License
+
+Copyright (2026) Databricks, Inc.
+
+This software and the associated files in this repository (the "Sample Code") are
+provided by Databricks, Inc. ("Databricks") as sample and illustrative code to
+demonstrate a pattern for building on Databricks products and services.
+
+Permission is hereby granted, free of charge, to any person or organization
+obtaining a copy of the Sample Code to use, copy, and modify the Sample Code for
+the purpose of evaluating, developing with, and using Databricks products and
+services, subject to the following terms:
+
+1. The above copyright notice and this permission and disclaimer notice shall be
+   included in all copies or substantial portions of the Sample Code.
+
+2. THE SAMPLE CODE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NONINFRINGEMENT. IN NO EVENT SHALL
+   DATABRICKS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN
+   ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION
+   WITH THE SAMPLE CODE OR THE USE OR OTHER DEALINGS IN THE SAMPLE CODE.
+
+3. The Sample Code is not a Databricks product or service, is not covered by any
+   Databricks support commitment or service level agreement, and is NOT intended
+   for production use without independent review, security hardening, and testing
+   by you.
+
+If you intend to redistribute this Sample Code, please align the license terms
+with Databricks legal for your specific use.

@@ -1,0 +1,14 @@
+resources:
+  schemas:
+    mvp_schema:
+      catalog_name: ${var.catalog}
+      name: ${var.schema}
+      comment: "RevisioFitxers MVP — clasificación de documentos con Databricks AI Functions"
+
+  volumes:
+    raw_docs:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.mvp_schema.name}
+      name: ${var.volume}
+      volume_type: MANAGED
+      comment: "landing/staging/output para el pipeline de clasificación de documentos"

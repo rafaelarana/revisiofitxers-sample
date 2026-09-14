@@ -1,0 +1,19 @@
+# Local/manual-mode intermediates (see README "Manual/local mode") — not needed for the DAB
+staging/
+output/
+poc_local/
+
+# Databricks bundle local state
+.databricks/
+.databricks-connect/
+
+.DS_Store
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Python test venv
+.venv/
+
+# Email share bundle (build output)
+email-bundle/

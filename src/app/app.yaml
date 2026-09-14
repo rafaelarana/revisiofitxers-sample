@@ -1,0 +1,13 @@
+command: ['npm', 'run', 'start']
+env:
+  - name: LAKEBASE_ENDPOINT
+    valueFrom: postgres
+  # UC Volume the files() plugin writes uploads into. The suffix after
+  # DATABRICKS_VOLUME_ becomes the volume key ("landing"). Value is injected by the
+  # DAB app resource env (see resources/app.yml) so it tracks the deployed catalog/schema.
+  - name: DATABRICKS_VOLUME_FILES
+    valueFrom: landing-volume
+  # Ingest+classify job id → the jobs() plugin's required `job` resource field maps to the
+  # DATABRICKS_JOB_ID env (single-job mode → accessor key "default"). See `apps manifest`.
+  - name: DATABRICKS_JOB_ID
+    valueFrom: ingest-job
