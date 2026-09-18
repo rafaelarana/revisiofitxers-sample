@@ -241,6 +241,13 @@ def normalize_dir(root: str | Path, *, skip_hidden: bool = True) -> NormalizeRes
     return normalize_files(sources)
 
 
+def _manifest_key(entry: dict) -> tuple:
+    """Stable identity for a manifest entry: staged_name for staged docs (deterministic
+    from lineage, so re-processing the same file is idempotent), else (kind, lineage)."""
+    sn = entry.get("staged_name")
+    return ("staged", sn) if sn else (entry.get("kind"), entry.get("lineage"))
+
+
 def write_result_to_dir(
     result: NormalizeResult,
     stage_root: str | Path,
@@ -248,12 +255,19 @@ def write_result_to_dir(
     clean: bool = True,
     write_file: Callable[[Path, bytes], None] | None = None,
     write_text: Callable[[Path, str], None] | None = None,
+    read_text: Callable[[Path], str] | None = None,
 ) -> dict[str, int]:
     """
     Persist a NormalizeResult in the staging/{binary,text}/ + manifest.json layout.
 
-    `write_file`/`write_text` let callers inject Volume-safe writers; default uses
-    plain filesystem writes (fine for local + Volume FUSE for these small artifacts).
+    `write_file`/`write_text`/`read_text` let callers inject Volume-safe IO; default uses
+    plain filesystem access (fine for local + Volume FUSE for these small artifacts).
+
+    When `clean=False` the manifest is *merged* with any existing manifest.json rather
+    than overwritten, deduped by `_manifest_key`. This is required for the streaming
+    ingest: Auto Loader may split one upload across several micro-batches, each calling
+    this per expedient — overwriting would drop every batch's docs but the last, leaving
+    them staged-but-unclassified (classify_merge joins parsed docs to the manifest).
     """
     stage_root = Path(stage_root)
     binary_dir = stage_root / "binary"
@@ -265,6 +279,9 @@ def write_result_to_dir(
     if write_text is None:
         def write_text(p: Path, s: str) -> None:  # noqa: E306
             p.write_text(s, encoding="utf-8")
+    if read_text is None:
+        def read_text(p: Path) -> str:  # noqa: E306
+            return p.read_text(encoding="utf-8")
 
     if clean:
         import shutil
@@ -279,8 +296,22 @@ def write_result_to_dir(
         elif it.kind == "text":
             write_text(text_dir / it.staged_name, it.text or "")
 
-    write_text(
-        stage_root / "manifest.json",
-        json.dumps(result.manifest, indent=2, ensure_ascii=False),
-    )
+    manifest_path = stage_root / "manifest.json"
+    manifest = result.manifest
+    if not clean:
+        existing: list[dict] = []
+        try:
+            existing = json.loads(read_text(manifest_path))
+        except (FileNotFoundError, OSError, ValueError):
+            existing = []
+        if existing:
+            seen = {_manifest_key(e) for e in existing}
+            merged = list(existing)
+            for e in manifest:
+                if _manifest_key(e) not in seen:
+                    merged.append(e)
+                    seen.add(_manifest_key(e))
+            manifest = merged
+
+    write_text(manifest_path, json.dumps(manifest, indent=2, ensure_ascii=False))
     return result.counts()

@@ -167,3 +167,25 @@ def test_content_hash_is_stable_and_short():
     h = content_hash(b"abc")
     assert h == content_hash(b"abc")
     assert len(h) == 12
+
+
+def test_write_result_to_dir_merges_manifest_across_batches(tmp_path):
+    # Simulates Auto Loader splitting one upload into two micro-batches, each writing to
+    # the same staging root with clean=False. The merged manifest must list BOTH batches'
+    # docs (regression: overwriting dropped all but the last batch → staged-but-unclassified).
+    stage = tmp_path / "staging"
+    b1 = normalize_files([("one.pdf", make_pdf(b"one"))])
+    write_result_to_dir(b1, stage, clean=False)
+    b2 = normalize_files([("two.pdf", make_pdf(b"two"))])
+    write_result_to_dir(b2, stage, clean=False)
+
+    import json
+    manifest = json.loads((stage / "manifest.json").read_text())
+    staged = {m["original_filename"] for m in manifest if m.get("staged_name")}
+    assert staged == {"one.pdf", "two.pdf"}
+    assert len(list((stage / "binary").glob("*.pdf"))) == 2
+
+    # Re-writing the same batch is idempotent (dedup by staged_name → no growth).
+    write_result_to_dir(b2, stage, clean=False)
+    manifest = json.loads((stage / "manifest.json").read_text())
+    assert len([m for m in manifest if m.get("staged_name")]) == 2
